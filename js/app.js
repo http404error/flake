@@ -22,7 +22,7 @@ Elisabeth Arvey
 	//SNOWFLAKE PARAMETERS
 	var NUM_POINTS = 6;
 	var MIN_RADIUS = 2; //note that the first spokes are 0
-	var MAX_RADIUS = 10;
+	var MAX_RADIUS = 6;
 	var FLAKE_TYPES = {
 		STARTER: [
 			{role: "starter", name: "diamond_s", radius: 18, vertices: [{x:0, y:0}, {x:10, y:-3}, {x:20, y:0}, {x:10, y:3}]},
@@ -46,9 +46,9 @@ Elisabeth Arvey
 var ctx;
 var gbListSnowflakes = [];
 var earlyEndChance = 15/100;
-var doubleEnderChance = 20/100;
+var doubleEnderChance = 10/100;
 var branchOnlyChance = 10/100;
-var baseBranchChance = 30/100;
+var baseBranchChance = 0/100;
 
 
 //Get the ball rolling
@@ -58,7 +58,11 @@ function init() {
 	var canvas = document.getElementById("c");
 	ctx = canvas.getContext("2d");
 
-	gbListSnowflakes.push(initSnowflake(400, 300, 1));
+	for (var x = 100; x <= 700; x += 200) {
+		for (var y = 100; y <= 500; y += 200) {
+			gbListSnowflakes.push(initSnowflake(x, y, 0, 0, 0, Math.random() * 1.5 + 0.5));
+		}
+	}
 
 	setInterval(tick, FRAME_DELAY);
 }
@@ -136,10 +140,10 @@ Snowflake Object
 	pos.th is in radians (in standard position)
 	vel is delta pos PER SECOND
 */
-function initSnowflake(x_pos, y_pos, th_vel) {
+function initSnowflake(x_pos, y_pos, th_pos, x_vel, y_vel, th_vel) {
 	var snowflake = {
-		pos: {x: x_pos, y: y_pos, th: 0},
-		vel: {x: 0, y: 0, th: th_vel},
+		pos: {x: x_pos, y: y_pos, th: th_pos},
+		vel: {x: x_vel, y: y_vel, th: th_vel},
 		children: [],
 		tick: function() {
 			this.pos.x += this.vel.x / FRAME_RATE;
@@ -221,7 +225,7 @@ function initFlake(flake_type, r_offset, th_offset, ph_offset, degree) {
 	if (degree >= MAX_RADIUS || (degree >= MIN_RADIUS && Math.random() < earlyEndChance)) {
 		rand = Math.random();
 		if (rand < doubleEnderChance) {
-			child_ph = Math.random() * Math.PI / 3;
+			child_ph = Math.random() * Math.PI / 3 - Math.PI / 6;
 			var tip = initFlake(getRandomEnder(), child_r, child_th, child_ph, degree + 2);
 			flake.children.push(tip);
 			flake.children.push(cloneFlake(tip, child_ph * -2));
@@ -262,15 +266,15 @@ function cloneFlake(original, rotation) {
 		type: original.type, //it was a reference to begin with
 		pos: {x: 0, y: 0, th: 0}, //this will update on tick()
 		offset: {r: original.offset.r, th: original.offset.th + rotation, ph: original.offset.ph},
-		children: [],
+		children: [], //we'll get to this in a moment
 		tick: original.tick,
 		draw: original.draw
 	};
-	
+
 	for (var i = 0; i < original.children.length; i++) {
 		copy.children[i] = cloneFlake(original.children[i], rotation);
 	}
-	
+
 	return copy;
 }
 
