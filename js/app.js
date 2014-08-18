@@ -1,3 +1,4 @@
+"use strict";
 /*
 FLAKE - a game
 	for a wintery day
@@ -23,6 +24,11 @@ Elisabeth Arvey
 	var NUM_POINTS = 6;
 	var MIN_RADIUS = 2; //note that the first spokes are 0
 	var MAX_RADIUS = 6;
+	var BRANCH_MIN_PHI = Math.PI / 12;
+	var BRANCH_RANGE_PHI = Math.PI / 3;
+	var DOUBLEEND_MIN_PHI = Math.PI / 12;
+	var DOUBLEEND_RANGE_PHI = Math.PI / 3;
+	var BRANCH_EXTRA_DEGREES = 2;
 	var FLAKE_TYPES = {
 		STARTER: [
 			{role: "starter", name: "diamond_s", radius: 18, vertices: [{x:0, y:0}, {x:10, y:-3}, {x:20, y:0}, {x:10, y:3}]},
@@ -46,9 +52,9 @@ Elisabeth Arvey
 var ctx;
 var gbListSnowflakes = [];
 var earlyEndChance = 15/100;
-var doubleEnderChance = 10/100;
-var branchOnlyChance = 10/100;
-var baseBranchChance = 0/100;
+var doubleEnderChance = 20/100;
+var branchOnlyChance = 5/100;
+var baseBranchChance = 20/100;
 
 
 //Get the ball rolling
@@ -135,6 +141,20 @@ function rotateArrayCCW(points, th) {
 }
 
 /*
+sumPolarVectors()
+	Sums two objects of the form {r: radius in pixels, th: angle in radians}
+	a: the first object
+	b: the second object
+*/
+function sumPolarVectors(a, b) {
+	var total_x = (a.r * Math.cos(a.th)) + (b.r * Math.cos(b.th));
+	var total_y = (a.r * Math.sin(a.th)) + (b.r * Math.sin(b.th));
+	var radius = Math.sqrt(total_x * total_x + total_y * total_y);
+	var angle = Math.atan2(total_y, total_x);
+	return {r: radius, th: angle};
+}
+
+/*
 Snowflake Object
 	pos.x/pos.y are in pixels (from upper left)
 	pos.th is in radians (in standard position)
@@ -157,13 +177,20 @@ function initSnowflake(x_pos, y_pos, th_pos, x_vel, y_vel, th_vel) {
 		draw: function() {
 			//draw children only
 			for(var i = 0; i < this.children.length; i++) {
-				this.children[i].draw(this.pos);
+				this.children[i].draw();
 			}
+		},
+		str: function() {
+			var s = "";
+			s += "pos: (" + this.pos.x + ", " + this.pos.y + ", " + this.pos.th + ")\n";
+			s += "vel: (" + this.vel.x + ", " + this.vel.y + ", " + this.vel.th + ")\n";
+			s += this.children[0].str(0);
+			return s;
 		}
 	};
 
 	//choose a random STARTER type and make the first child
-	snowflake.children[0] = initFlake(getRandomStarter(), 0, 0, 0, 0);
+	snowflake.children[0] = initFlake(getRandomStarter(), 0, 0);
 	//initFlake generates all the various grandchildren for that particular spoke
 
 	//copy the first child for each other point in the snowflake
@@ -177,26 +204,30 @@ function initSnowflake(x_pos, y_pos, th_pos, x_vel, y_vel, th_vel) {
 /*
 Flake Object
 	type: reference to FLAKE_TYPE object defined at the top, should be static
-	offset: intended to be constant, defined on creation
-		r: distance from the center of the snowflake
-		th: rotation from the center
+	pos: base coordinate position and rotation
+	offset: intended to be constant, defined on creation or immediately afterwards
+		r: distance from the parent flake (the center for first children)
+		th: rotation from the parent's orientation (0 for first children)
 		ph: rotation about the point defined by r and th
-	degree: number of flakes from the center, with branches getting extra
+	degree: number of flakes from the center, with branches getting extra in order to end sooner
 */
-function initFlake(flake_type, r_offset, th_offset, ph_offset, degree) {
-	var inter_x, inter_y, child_r, child_th, child_ph, rand, do_branch, do_stem;
+function initFlake(flake_type, offset_angle, degree) {
+	var child_offset, rand, do_branch, do_stem;
 	var flake = {
 		type: flake_type,
 		pos: {x: 0, y: 0, th: 0},
-		offset: {r: r_offset, th: th_offset, ph: ph_offset},
+		offset: offset_angle,
 		children: [],
-		tick: function(root_pos) {
-			this.pos.th = root_pos.th + this.offset.th;
-			this.pos.x = root_pos.x + (this.offset.r * Math.cos(this.pos.th));
-			this.pos.y = root_pos.y + (this.offset.r * Math.sin(this.pos.th));
-			this.pos.th += this.offset.ph;
+		tick: function(origin_pos) {
+			this.pos.x = origin_pos.x;
+			this.pos.y = origin_pos.y;
+			this.pos.th = origin_pos.th + this.offset;
+			var tip_pos = {};
+			tip_pos.x = this.pos.x + this.type.radius * Math.cos(this.pos.th);
+			tip_pos.y = this.pos.y + this.type.radius * Math.sin(this.pos.th);
+			tip_pos.th = this.pos.th;
 			for (var i = 0; i < this.children.length; i++) {
-				this.children[i].tick(root_pos);
+				this.children[i].tick(tip_pos);
 			}
 		},
 		draw: function() {
@@ -207,8 +238,21 @@ function initFlake(flake_type, r_offset, th_offset, ph_offset, degree) {
 			}
 			drawPoly(vertices);
 			for (i = 0; i < this.children.length; i++) {
-				this.children[i].draw(this.pos);
+				this.children[i].draw();
 			}
+		},
+		str: function(degree) {
+			var ind = "";
+			for (var i = 0; i < degree; i++) {
+				ind += "  ";
+			}
+			var s = "";
+			s += ind + "type: " + this.type.name + "\n";
+			s += ind + "offset: " + this.offset + "\n";
+			for (var i = 0; i < this.children.length; i++) {
+				s += this.children[i].str(degree + 1);
+			}
+			return s;
 		}
 	};
 
@@ -217,20 +261,16 @@ function initFlake(flake_type, r_offset, th_offset, ph_offset, degree) {
 		return flake;
 	}
 
-	inter_x = (flake.offset.r * Math.cos(flake.offset.th)) + (flake.type.radius * Math.cos(flake.offset.ph));
-	inter_y = (flake.offset.r * Math.sin(flake.offset.th)) + (flake.type.radius * Math.sin(flake.offset.ph));
-	child_r = Math.sqrt(inter_x * inter_x + inter_y * inter_y);
-	child_th = Math.atan2(inter_x, inter_y);
-
-	if (degree >= MAX_RADIUS || (degree >= MIN_RADIUS && Math.random() < earlyEndChance)) {
-		rand = Math.random();
-		if (rand < doubleEnderChance) {
-			child_ph = Math.random() * Math.PI / 3 - Math.PI / 6;
-			var tip = initFlake(getRandomEnder(), child_r, child_th, child_ph, degree + 2);
+	if (degree >= MAX_RADIUS || (degree >= MIN_RADIUS && Math.random() < earlyEndChance)) { //place an ender
+		if (Math.random() < doubleEnderChance) {
+			child_offset = Math.random() * DOUBLEEND_RANGE_PHI + DOUBLEEND_MIN_PHI;
+			var tip = initFlake(getRandomEnder(), child_offset, degree + 2);
+			var tip2 = cloneFlake(tip, 0);
+			tip2.offset *= -1;
 			flake.children.push(tip);
-			flake.children.push(cloneFlake(tip, child_ph * -2));
+			flake.children.push(tip2);
 		} else {
-			flake.children.push(initFlake(getRandomEnder(), child_r, child_th, 0, degree + 1));
+			flake.children.push(initFlake(getRandomEnder(), 0, degree + 1));
 		}
 	} else { //continue growth
 		rand = Math.random();
@@ -248,31 +288,44 @@ function initFlake(flake_type, r_offset, th_offset, ph_offset, degree) {
 		}
 
 		if (do_branch) {
-			child_ph = Math.random() * Math.PI / 2;
-			var branch = initFlake(getRandomLinker(), child_r, child_th, child_ph, degree + 2);
+			child_offset = Math.random() * BRANCH_RANGE_PHI + BRANCH_MIN_PHI;
+			var branch = initFlake(getRandomLinker(), child_offset, degree + 1 + BRANCH_EXTRA_DEGREES);
 			flake.children.push(branch);
-			flake.children.push(cloneFlake(branch, child_ph * -2));
+			var mirror = cloneFlake(branch, 0);
+			mirror.offset *= -1;
+			flake.children.push(mirror);
 		}
 		if (do_stem) {
-			flake.children.push(initFlake(getRandomLinker(), child_r, child_th, 0, degree + 1));
+			flake.children.push(initFlake(getRandomLinker(), 0, degree + 1));
 		}
 	}
 
 	return flake;
 }
 
-function cloneFlake(original, rotation) {
+/*
+cloneFlake Function
+	original: Flake Object to copy
+	rotation: angle to rotate by in radians
+	returns the copied flake
+*/
+function cloneFlake(original, /*optional*/ rotation) {
+	var rot = 0;
+	if (typeof rotation != "undefined") {
+		rot = rotation;
+	}
 	var copy = {
 		type: original.type, //it was a reference to begin with
 		pos: {x: 0, y: 0, th: 0}, //this will update on tick()
-		offset: {r: original.offset.r, th: original.offset.th + rotation, ph: original.offset.ph},
+		offset: original.offset + rot,
 		children: [], //we'll get to this in a moment
 		tick: original.tick,
-		draw: original.draw
+		draw: original.draw,
+		str: original.str
 	};
 
 	for (var i = 0; i < original.children.length; i++) {
-		copy.children[i] = cloneFlake(original.children[i], rotation);
+		copy.children[i] = cloneFlake(original.children[i], 0);
 	}
 
 	return copy;
