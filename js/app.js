@@ -9,6 +9,8 @@ Benjamin Arvey
 Elisabeth Arvey
 */
 
+// this would be cool with machine learning
+
 //CONSTANTS
 	//WINDOW AND RENDERING
 	var FRAME_DELAY = 20;
@@ -22,12 +24,12 @@ Elisabeth Arvey
 
 	//SNOWFLAKE PARAMETERS
 	var NUM_POINTS = 6;
-	var MIN_RADIUS = 2; //note that the first spokes are 0
+	var MIN_RADIUS = 3; //note that the first spokes are 0
 	var MAX_RADIUS = 6;
-	var BRANCH_MIN_PHI = Math.PI / 12;
-	var BRANCH_RANGE_PHI = Math.PI / 3;
-	var DOUBLEEND_MIN_PHI = Math.PI / 12;
-	var DOUBLEEND_RANGE_PHI = Math.PI / 3;
+	var BRANCH_OFFSET_MIN = Math.PI / 12;
+	var BRANCH_OFFSET_RANGE = Math.PI / 3;
+	var DOUBLEEND_OFFSET_MIN = Math.PI / 12;
+	var DOUBLEEND_OFFSET_RANGE = Math.PI / 3;
 	var BRANCH_EXTRA_DEGREES = 2;
 	var FLAKE_TYPES = {
 		STARTER: [
@@ -51,10 +53,10 @@ Elisabeth Arvey
 //GLOBALS
 var ctx;
 var gbListSnowflakes = [];
-var earlyEndChance = 15/100;
+var earlyEndChance = 20/100;
 var doubleEnderChance = 20/100;
 var branchOnlyChance = 5/100;
-var baseBranchChance = 20/100;
+var baseBranchChance = 30/100;
 
 
 //Get the ball rolling
@@ -64,13 +66,23 @@ function init() {
 	var canvas = document.getElementById("c");
 	ctx = canvas.getContext("2d");
 
+	regen();
+
+	$("#regenerate").click(regen);
+
+	setInterval(tick, FRAME_DELAY);
+}
+
+function regen() {
+
+	gbListSnowflakes = [];
+
 	for (var x = 100; x <= 700; x += 200) {
 		for (var y = 100; y <= 500; y += 200) {
 			gbListSnowflakes.push(initSnowflake(x, y, 0, 0, 0, Math.random() * 1.5 + 0.5));
 		}
 	}
 
-	setInterval(tick, FRAME_DELAY);
 }
 
 function tick() {
@@ -263,7 +275,7 @@ function initFlake(flake_type, offset_angle, degree) {
 
 	if (degree >= MAX_RADIUS || (degree >= MIN_RADIUS && Math.random() < earlyEndChance)) { //place an ender
 		if (Math.random() < doubleEnderChance) {
-			child_offset = Math.random() * DOUBLEEND_RANGE_PHI + DOUBLEEND_MIN_PHI;
+			child_offset = Math.random() * DOUBLEEND_OFFSET_RANGE + DOUBLEEND_OFFSET_MIN;
 			var tip = initFlake(getRandomEnder(), child_offset, degree + 2);
 			var tip2 = cloneFlake(tip, 0);
 			tip2.offset *= -1;
@@ -288,7 +300,7 @@ function initFlake(flake_type, offset_angle, degree) {
 		}
 
 		if (do_branch) {
-			child_offset = Math.random() * BRANCH_RANGE_PHI + BRANCH_MIN_PHI;
+			child_offset = Math.random() * BRANCH_OFFSET_RANGE + BRANCH_OFFSET_MIN;
 			var branch = initFlake(getRandomLinker(), child_offset, degree + 1 + BRANCH_EXTRA_DEGREES);
 			flake.children.push(branch);
 			var mirror = cloneFlake(branch, 0);
